@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QC検定3級トレーニング（改修版）</title>
+<style>
+:root{--bg:#0f172a;--panel:#0b1220;--fg:#e5e7eb;--muted:#9ca3af}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic",Meiryo,sans-serif;background:var(--bg);color:var(--fg)}
+header{padding:14px 16px;background:#08102a;position:sticky;top:0;display:flex;align-items:center;gap:12px;z-index:10;}
+h1{margin:0;font-size:18px}
+main{max-width:980px;margin:16px auto;padding:0 16px 80px}
+.panel{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:12px}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{padding:8px 12px;border-radius:10px;border:1px solid #334155;background:transparent;color:var(--fg);cursor:pointer}
+button:disabled{background:#1e293b;color:var(--muted);cursor:not-allowed;border-color:#1e293b;}
+button.primary{background:linear-gradient(180deg,#22d3ee,#0891b2);border:none;color:#021018;font-weight:700}
+.choice{display:block;width:100%;text-align:left;margin-top:8px;padding:8px;border-radius:10px;border:1px solid #334155;background:#07101d;cursor:pointer}
+.choice:disabled{color:var(--fg);cursor:default}
+.correct{border-color:rgba(16,185,129,.8);background:rgba(16,185,129,.06)}
+.wrong{border-color:rgba(239,68,68,.8);background:rgba(239,68,68,.06)}
+.small{color:var(--muted);font-size:13px}
+.kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:2px 6px;border:1px solid #334155;border-radius:6px}
+.select-row label{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid #1f2937;cursor:pointer;user-select:none;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.hr{height:1px;background:#111827;margin:12px 0;border-radius:2px}
+#quizSection.hidden{display:none;}
+</style>
+</head>
+<body>
+<header><h1>QC検定3級トレーニング</h1></header>
+<main>
+  <section class="panel">
+    <div class="grid">
+      <div>
+        <div class="small">カテゴリ（複数可）</div>
+        <div class="select-row" id="catRow">
+          <label><input type="checkbox" class="cat" value="基本確認" checked>基本確認</label>
+          <label><input type="checkbox" class="cat" value="QC七つ道具" checked>QC七つ道具</label>
+          <label><input type="checkbox" class="cat" value="管理図" checked>管理図</label>
+          <label><input type="checkbox" class="cat" value="QC手法" checked>QC手法</label>
+          <label><input type="checkbox" class="cat" value="統計・計算" checked>統計・計算</label>
+        </div>
+        <div class="small" style="margin-top:8px"><button id="allOn">全選択</button> <button id="allOff">全解除</button></div>
+      </div>
+      <div>
+        <div class="small">出題数</div>
+        <select id="countSel" style="padding: 4px; border-radius: 6px; background: var(--panel); color: var(--fg); border: 1px solid #334155;">
+          <option value="30">30問</option>
+          <option value="60">60問</option>
+          <option value="90">90問</option>
+          <option value="120">120問</option>
+          <option value="150" selected>全問</option>
+        </select>
+        <div style="margin-top:8px" class="small">進捗は自動保存されます。</div>
+      </div>
+      <div>
+        <div class="small">ステータス</div>
+        <div class="flex small" style="margin-top:6px">
+          <div>問題数: <b id="total">0</b></div>
+          <div>現在: <b id="index">0</b></div>
+          <div>正答: <b id="correctCount">0</b></div>
+          <div>正答率: <b id="rate">-</b></div>
+        </div>
+      </div>
+      <div class="flex" style="justify-content:flex-end">
+        <button id="startBtn" class="primary">新規出題</button>
+        <button id="wrongBtn">間違いのみ</button>
+        <button id="resetBtn">リセット</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="quizSection" class="panel hidden" style="margin-top:12px">
+    <div id="qtext"></div>
+    <div id="choices" style="margin-top:8px"></div>
+    <div id="explain" class="small" style="margin-top:8px"></div>
+    <div class="hr"></div>
+    <div class="flex">
+      <button id="prevBtn">前へ</button>
+      <button id="nextBtn" class="primary">次へ</button>
+      <div style="flex:1"></div>
+      <div class="small">キー：<span class="kbd">1-4</span>選択 <span class="kbd">N</span>次へ <span class="kbd">P</span>前へ</div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ===== 問題データ（全150問） =====
+const RAW_QUESTIONS=[{"category":"基本確認","question":"QC活動とは何か？","choices":["品質改善の活動","売上向上の活動","コスト削減のみ","安全管理のみ"],"answer":"品質改善の活動"},{"category":"基本確認","question":"PDCAサイクルのPは何を意味する？","choices":["計画","実行","評価","改善"],"answer":"計画"},{"category":"基本確認","question":"PDCAサイクルのDは何を意味する？","choices":["実行","計画","評価","改善"],"answer":"実行"},{"category":"基本確認","question":"PDCAサイクルのCは何を意味する？","choices":["評価","計画","実行","改善"],"answer":"評価"},{"category":"基本確認","question":"PDCAサイクルのAは何を意味する？","choices":["改善","計画","実行","評価"],"answer":"改善"},{"category":"基本確認","question":"QC七つ道具に含まれないものは？","choices":["経営計画書","管理図","ヒストグラム","特性要因図"],"answer":"経営計画書"},{"category":"基本確認","question":"QC活動で重視するものは？","choices":["品質の安定と改善","売上向上","コスト削減のみ","人事評価"],"answer":"品質の安定と改善"},{"category":"基本確認","question":"管理図で異常が出たら何をする？","choices":["原因を調査して改善","無視する","すぐ中止","平均値だけ計算"],"answer":"原因を調査して改善"},{"category":"基本確認","question":"ヒストグラムの縦軸は？","choices":["度数","平均値","中央値","分散"],"answer":"度数"},{"category":"基本確認","question":"ヒストグラムの横軸は？","choices":["データの階級","平均値","中央値","分散"],"answer":"データの階級"},{"category":"基本確認","question":"パレート図で累積比率線は何を示す？","choices":["全体に占める割合","平均値","中央値","分散"],"answer":"全体に占める割合"},{"category":"基本確認","question":"チェックシートの目的は？","choices":["データ収集の整理","平均値計算","分散計算","工程改善なし"],"answer":"データ収集の整理"},{"category":"基本確認","question":"特性要因図の別名は？","choices":["魚の骨図","ヒストグラム","散布図","パレート図"],"answer":"魚の骨図"},{"category":"基本確認","question":"散布図の目的は？","choices":["要因間の関係把握","平均値計算","分散計算","データの累積"],"answer":"要因間の関係把握"},{"category":"基本確認","question":"QC活動の基本目標は？","choices":["顧客満足の向上","売上向上のみ","社員教育のみ","在庫削減のみ"],"answer":"顧客満足の向上"},{"category":"基本確認","question":"管理図で工程が安定しているとは？","choices":["偶然の変動だけ","異常変動が多い","平均値が高い","中央値が低い"],"answer":"偶然の変動だけ"},{"category":"基本確認","question":"QC活動で最初に行うことは？","choices":["現状把握","改善案作成","結果報告","コスト分析"],"answer":"現状把握"},{"category":"基本確認","question":"QC活動の改善対象は？","choices":["製品や工程の品質","売上のみ","社員評価のみ","安全管理のみ"],"answer":"製品や工程の品質"},{"category":"基本確認","question":"PDCAで改善が成功したら何をする？","choices":["次の計画に活かす","無視する","元に戻す","新製品作成"],"answer":"次の計画に活かす"},{"category":"基本確認","question":"QC活動の成果は何で評価する？","choices":["品質向上の度合い","売上額のみ","社員人数のみ","在庫量のみ"],"answer":"品質向上の度合い"},{"category":"基本確認","question":"QC活動で問題を整理する道具は？","choices":["チェックシート","管理図","ヒストグラム","散布図"],"answer":"チェックシート"},{"category":"基本確認","question":"QC活動で原因を分析する道具は？","choices":["特性要因図","ヒストグラム","散布図","パレート図"],"answer":"特性要因図"},{"category":"基本確認","question":"QC活動で重要な問題を優先する道具は？","choices":["パレート図","管理図","ヒストグラム","散布図"],"answer":"パレート図"},{"category":"基本確認","question":"QC活動でデータの傾向を把握する道具は？","choices":["ヒストグラム","チェックシート","特性要因図","パレート図"],"answer":"ヒストグラム"},{"category":"基本確認","question":"QC活動で関係性を確認する道具は？","choices":["散布図","チェックシート","ヒストグラム","パレート図"],"answer":"散布図"},{"category":"基本確認","question":"QC活動の根本目的は？","choices":["品質改善による顧客満足","売上向上のみ","在庫削減のみ","社員教育のみ"],"answer":"品質改善による顧客満足"},{"category":"基本確認","question":"QC活動の対象は？","choices":["製品・工程・サービス","売上のみ","社員評価のみ","安全管理のみ"],"answer":"製品・工程・サービス"},{"category":"基本確認","question":"QC活動を継続する意義は？","choices":["品質向上を持続させるため","売上向上のみ","社員教育のみ","安全管理のみ"],"answer":"品質向上を持続させるため"},{"category":"基本確認","question":"QC活動で改善効果を確認する方法は？","choices":["管理図やデータ分析","感覚のみ","売上のみ","社員評価のみ"],"answer":"管理図やデータ分析"},{"category":"QC七つ道具","question":"ヒストグラムの目的は？","choices":["データ分布の把握","平均値計算","中央値算出","分散計算"],"answer":"データ分布の把握"},
+{"category":"QC七つ道具","question":"パレート図の目的は？","choices":["重要な問題の特定","平均値計算","中央値算出","分散計算"],"answer":"重要な問題の特定"},{"category":"QC七つ道具","question":"特性要因図（フィッシュボーン図）は何に使う？","choices":["原因分析","平均値計算","中央値算出","分散計算"],"answer":"原因分析"},{"category":"QC七つ道具","question":"管理図は何を監視する？","choices":["工程安定","平均値計算","中央値算出","分散計算"],"answer":"工程安定"},{"category":"QC七つ道具","question":"散布図の目的は？","choices":["要因間の関係把握","平均値計算","中央値算出","分散計算"],"answer":"要因間の関係把握"},{"category":"QC七つ道具","question":"チェックシートの主な用途は？","choices":["データ収集と整理","平均値計算","中央値算出","分散計算"],"answer":"データ収集と整理"},{"category":"QC七つ道具","question":"ヒストグラムでデータが偏っていると？","choices":["改善が必要な可能性","工程は安定","中央値が高い","平均値が低い"],"answer":"改善が必要な可能性"},{"category":"QC七つ道具","question":"パレート図の80:20の法則とは？","choices":["少数の問題が大多数の影響を与える","平均値計算","中央値算出","分散計算"],"answer":"少数の問題が大多数の影響を与える"},{"category":"QC七つ道具","question":"特性要因図で主な分類は？","choices":["人・機械・材料・方法・測定・環境","平均値","中央値","分散"],"answer":"人・機械・材料・方法・測定・環境"},{"category":"QC七つ道具","question":"散布図で正の相関とは？","choices":["一方が増えると他方も増える","一方が増えると他方が減る","関係なし","分散が大きい"],"answer":"一方が増えると他方も増える"},{"category":"QC七つ道具","question":"散布図で負の相関とは？","choices":["一方が増えると他方が減る","一方が増えると他方も増える","関係なし","分散が大きい"],"answer":"一方が増えると他方が減る"},{"category":"QC七つ道具","question":"チェックシートでミスを減らす効果は？","choices":["収集データの漏れ防止","平均値算出","中央値算出","分散計算"],"answer":"収集データの漏れ防止"},{"category":"QC七つ道具","question":"ヒストグラムで山が二つある場合は？","choices":["二峰性分布で改善対象あり","単峰性","中央値算出","分散計算"],"answer":"二峰性分布で改善対象あり"},{"category":"QC七つ道具","question":"パレート図の棒が大きい順に並んでいる理由は？","choices":["重要な問題を特定しやすくするため","平均値算出","中央値算出","分散計算"],"answer":"重要な問題を特定しやすくするため"},{"category":"QC七つ道具","question":"特性要因図で原因を詳細化する理由は？","choices":["問題の根本原因を明確にするため","平均値算出","中央値算出","分散計算"],"answer":"問題の根本原因を明確にするため"},{"category":"QC七つ道具","question":"QC七つ道具で最も基本的な収集手法は？","choices":["チェックシート","ヒストグラム","散布図","パレート図"],"answer":"チェックシート"},{"category":"QC七つ道具","question":"散布図で点がバラバラの場合は？","choices":["相関なし","正の相関","負の相関","中央値が高い"],"answer":"相関なし"},{"category":"QC七つ道具","question":"ヒストグラムの横軸は何を表す？","choices":["データの階級","平均値","中央値","分散"],"answer":"データの階級"},{"category":"QC七つ道具","question":"ヒストグラムの縦軸は何を表す？","choices":["度数","平均値","中央値","分散"],"answer":"度数"},{"category":"QC七つ道具","question":"パレート図の累積線の意味は？","choices":["全体のどれくらいの割合を占めるか","平均値","中央値","分散"],"answer":"全体のどれくらいの割合を占めるか"},{"category":"QC七つ道具","question":"特性要因図で「原因」を記入する場所は？","choices":["骨の先端部分","中心線","中央値","分散"],"answer":"骨の先端部分"},{"category":"QC七つ道具","question":"QC七つ道具で工程改善の初期段階で使うのは？","choices":["チェックシート","管理図","散布図","パレート図"],"answer":"チェックシート"},{"category":"QC七つ道具","question":"ヒストグラムで偏りがあると？","choices":["工程改善が必要","工程安定","中央値が高い","平均値が低い"],"answer":"工程改善が必要"},{"category":"QC七つ道具","question":"散布図で点が一直線上にある場合は？","choices":["強い相関あり","相関なし","中央値が高い","分散が大きい"],"answer":"強い相関あり"},{"category":"QC七つ道具","question":"パレート図で重要度を判断する基準は？","choices":["棒の高さと累積比率","平均値","中央値","分散"],"answer":"棒の高さと累積比率"},{"category":"QC七つ道具","question":"特性要因図の別名は？","choices":["魚の骨図","ヒストグラム","散布図","パレート図"],"answer":"魚の骨図"},{"category":"QC七つ道具","question":"QC七つ道具は何のために使う？","choices":["品質改善のため","中央値算出","平均値算出","分散計算"],"answer":"品質改善のため"},{"category":"QC七つ道具","question":"散布図で点がほぼ水平に分布すると？","choices":["相関なし","正の相関","負の相関","中央値が高い"],"answer":"相関なし"},{"category":"管理図","question":"管理図で中心線は何を示す？","choices":["工程平均","中央値","分散","標準偏差"],"answer":"工程平均"},{"category":"管理図","question":"管理図の上限（UCL）を超えた場合は？","choices":["工程に異常がある可能性","中央値が高い","平均値が低い","標準偏差が小さい"],"answer":"工程に異常がある可能性"},
+{"category":"管理図","question":"管理図の下限（LCL）を下回った場合は？","choices":["工程に異常がある可能性","中央値が高い","平均値が低い","標準偏差が小さい"],"answer":"工程に異常がある可能性"},{"category":"管理図","question":"X管理図で点が全て中心線の上下限内なら？","choices":["工程は安定している","工程は不安定","平均値が高い","分散が大きい"],"answer":"工程は安定している"},{"category":"管理図","question":"管理図における工程安定の条件は？","choices":["点がUCLとLCL内に収まること","平均値が中心線に等しいこと","中央値が平均値と等しいこと","分散が大きいこと"],"answer":"点がUCLとLCL内に収まること"},{"category":"管理図","question":"p管理図は何を管理する？","choices":["不良率","平均値","中央値","分散"],"answer":"不良率"},{"category":"管理図","question":"管理図の用途は？","choices":["工程の異常検知","中央値を求める","分散を計算する","平均値を求める"],"answer":"工程の異常検知"},{"category":"管理図","question":"c管理図でカウントするものは？","choices":["不良個数","平均値","中央値","分散"],"answer":"不良個数"},{"category":"管理図","question":"X管理図は何を表す？","choices":["測定値の平均値","中央値","分散","度数"],"answer":"測定値の平均値"},{"category":"管理図","question":"R管理図は何を表す？","choices":["測定値の範囲","中央値","分散","平均値"],"answer":"測定値の範囲"},{"category":"管理図","question":"管理図の点がUCLに近づくと？","choices":["工程に注意が必要","工程は安定","平均値が高い","分散が小さい"],"answer":"工程に注意が必要"},{"category":"管理図","question":"管理図で連続7点が中心線の上にある場合は？","choices":["工程に異常の可能性","工程は安定","中央値が高い","平均値が低い"],"answer":"工程に異常の可能性"},{"category":"管理図","question":"管理図の点が周期的に上下する場合は？","choices":["工程に周期的変動がある","工程は安定","中央値が高い","平均値が低い"],"answer":"工程に周期的変動がある"},{"category":"管理図","question":"p管理図の中心線は？","choices":["平均不良率","中央値","平均値","分散"],"answer":"平均不良率"},{"category":"管理図","question":"c管理図の中心線は？","choices":["平均不良個数","中央値","平均値","分散"],"answer":"平均不良個数"},{"category":"管理図","question":"管理図で点が連続してUCLまたはLCLに近い場合は？","choices":["工程の注意が必要","工程は安定","中央値が高い","平均値が低い"],"answer":"工程の注意が必要"},{"category":"管理図","question":"管理図で点が上下にランダムなら？","choices":["工程は統計的に安定","工程は不安定","中央値が高い","平均値が低い"],"answer":"工程は統計的に安定"},{"category":"管理図","question":"R管理図のUCLは何を基準に決まる？","choices":["標本範囲の平均と係数","中央値","平均値","分散"],"answer":"標本範囲の平均と係数"},{"category":"管理図","question":"X管理図のUCLは何を基準に決める？","choices":["平均値と標準偏差","中央値","範囲","分散"],"answer":"平均値と標準偏差"},{"category":"管理図","question":"管理図の基本目的は？","choices":["工程安定の監視","中央値を求める","平均値を求める","分散を求める"],"answer":"工程安定の監視"},{"category":"管理図","question":"管理図に点が中心線を大きく越えた場合は？","choices":["工程に異常の可能性","工程は安定","中央値が高い","平均値が低い"],"answer":"工程に異常の可能性"},{"category":"管理図","question":"p管理図でnが大きいほど？","choices":["統計的安定性が高くなる","中央値が高い","平均値が低い","分散が小さい"],"answer":"統計的安定性が高くなる"},{"category":"管理図","question":"c管理図で不良個数が多い場合は？","choices":["工程に異常の可能性","工程は安定","中央値が高い","平均値が低い"],"answer":"工程に異常の可能性"},{"category":"管理図","question":"管理図の点が全てLCLより下にある場合は？","choices":["工程に異常の可能性","工程は安定","中央値が高い","平均値が低い"],"answer":"工程に異常の可能性"},{"category":"管理図","question":"管理図の点が中心線付近に密集している場合は？","choices":["工程は安定","工程に異常","中央値が高い","平均値が低い"],"answer":"工程は安定"},{"category":"管理図","question":"管理図における異常の兆候は？","choices":["UCL・LCL超え、連続点","中央値の変化","平均値の増減","分散の増加"],"answer":"UCL・LCL超え、連続点"},{"category":"管理図","question":"X管理図で工程が安定なら点は？","choices":["中心線の上下にランダム分布","平均値を超える","中央値を超える","分散が大きい"],"answer":"中心線の上下にランダム分布"},{"category":"管理図","question":"管理図で連続して点がUCLやLCL近くにある場合は？","choices":["工程に注意が必要","工程は安定","中央値が高い","平均値が低い"],"answer":"工程に注意が必要"},{"category":"管理図","question":"R管理図で範囲が小さい場合は？","choices":["工程の変動が小さい","中央値が高い","平均値が低い","分散が大きい"],"answer":"工程の変動が小さい"},{"category":"QC手法","question":"パレート図の目的は？","choices":["問題の重要度を可視化する","データの平均を求める","標準偏差を求める","分散を求める"],"answer":"問題の重要度を可視化する"},
+{"category":"QC手法","question":"ヒストグラムは何を表す？","choices":["データの分布","平均値","分散","中央値"],"answer":"データの分布"},{"category":"QC手法","question":"特性要因図の別名は？","choices":["魚の骨図（フィッシュボーン）","ヒストグラム","箱ひげ図","散布図"],"answer":"魚の骨図（フィッシュボーン）"},{"category":"QC手法","question":"チェックシートの目的は？","choices":["データを収集整理する","分散を求める","平均値を出す","中央値を確認する"],"answer":"データを収集整理する"},{"category":"QC手法","question":"管理図の目的は？","choices":["工程の安定性を監視する","中央値を求める","分散を求める","データを整理する"],"answer":"工程の安定性を監視する"},{"category":"QC手法","question":"ヒストグラムの横軸は？","choices":["階級","平均値","分散","件数"],"answer":"階級"},{"category":"QC手法","question":"ヒストグラムの縦軸は？","choices":["度数","中央値","平均値","範囲"],"answer":"度数"},{"category":"QC手法","question":"パレートの法則とは？","choices":["80:20の法則","平均値の法則","中央値の法則","標準偏差の法則"],"answer":"80:20の法則"},{"category":"QC手法","question":"管理図における中心線とは？","choices":["工程平均","中央値","最頻値","分散"],"answer":"工程平均"},{"category":"QC手法","question":"QC七つ道具に含まれないものは？","choices":["経営計画書","管理図","チェックシート","特性要因図"],"answer":"経営計画書"},{"category":"QC手法","question":"散布図の目的は？","choices":["変数間の関係を見る","分散を求める","中央値を求める","データを集計する"],"answer":"変数間の関係を見る"},{"category":"QC手法","question":"層別とは何か？","choices":["データをグループ分けして分析する","分散を求める","平均値を出す","標準偏差を求める"],"answer":"データをグループ分けして分析する"},{"category":"QC手法","question":"散布図で点が右上がりの傾向なら？","choices":["正の相関がある","負の相関がある","相関なし","中央値が高い"],"answer":"正の相関がある"},{"category":"QC手法","question":"特性要因図の目的は？","choices":["問題の原因を体系的に整理する","平均値を求める","分散を求める","中央値を求める"],"answer":"問題の原因を体系的に整理する"},{"category":"QC手法","question":"管理図で工程が安定しているとは？","choices":["点が中心線の上下限内に収まる","平均値が大きい","分散が大きい","中央値が平均値と等しい"],"answer":"点が中心線の上下限内に収まる"},{"category":"QC手法","question":"パレート図の縦軸は？","choices":["件数または割合","中央値","平均値","分散"],"answer":"件数または割合"},{"category":"QC手法","question":"パレート図の横軸は？","choices":["要因の種類","平均値","中央値","分散"],"answer":"要因の種類"},{"category":"QC手法","question":"QC手法とは？","choices":["問題解決や品質向上の方法","平均値を求める方法","分散を求める方法","中央値を求める方法"],"answer":"問題解決や品質向上の方法"},{"category":"QC手法","question":"層別の利点は？","choices":["原因を特定しやすくなる","平均値を出せる","中央値を出せる","標準偏差を求めやすい"],"answer":"原因を特定しやすくなる"},{"category":"QC手法","question":"散布図の縦軸は通常何を表す？","choices":["従属変数","独立変数","平均値","中央値"],"answer":"従属変数"},{"category":"QC手法","question":"散布図の横軸は通常何を表す？","choices":["独立変数","従属変数","平均値","中央値"],"answer":"独立変数"},{"category":"QC手法","question":"QC手法の目的は？","choices":["品質向上と問題解決","分散を求めること","平均値を求めること","中央値を求めること"],"answer":"品質向上と問題解決"},{"category":"QC手法","question":"管理図の上下限を超えた場合は？","choices":["工程に異常がある可能性","中央値が高い","平均値が低い","標準偏差が小さい"],"answer":"工程に異常がある可能性"},{"category":"QC手法","question":"QC手法でヒストグラムを使う目的は？","choices":["データの分布を確認する","中央値を求める","平均値を出す","分散を求める"],"answer":"データの分布を確認する"},{"category":"QC手法","question":"パレート図を使うと何がわかる？","choices":["重要な問題がどれか","平均値","中央値","分散"],"answer":"重要な問題がどれか"},{"category":"QC手法","question":"QC手法は何を改善するために使う？","choices":["工程や品質","中央値","分散","平均値"],"answer":"工程や品質"},{"category":"統計・計算","question":"平均値の計算方法は？","choices":["全データの合計を件数で割る","最大値と最小値を足す","中央値を取る","標準偏差を求める"],"answer":"全データの合計を件数で割る"},
+{"category":"統計・計算","question":"中央値とは何ですか？","choices":["データを大きさ順に並べたとき中央の値","平均値のこと","最頻値のこと","最大値のこと"],"answer":"データを大きさ順に並べたとき中央の値"},{"category":"統計・計算","question":"最頻値とは何ですか？","choices":["最も頻繁に現れる値","平均値のこと","中央値のこと","データの範囲"],"answer":"最も頻繁に現れる値"},{"category":"統計・計算","question":"分散とは何ですか？","choices":["データのばらつきの平均値","中央値の値","最頻値の範囲","最大値"],"answer":"データのばらつきの平均値"},{"category":"統計・計算","question":"標準偏差とは何ですか？","choices":["分散の平方根","平均値","中央値","最頻値"],"answer":"分散の平方根"},{"category":"統計・計算","question":"範囲（レンジ）の計算方法は？","choices":["最大値−最小値","平均値−中央値","分散×件数","標準偏差"],"answer":"最大値−最小値"},{"category":"統計・計算","question":"相関係数が+1に近いときの意味は？","choices":["正の強い相関がある","負の強い相関がある","相関なし","平均値が大きい"],"answer":"正の強い相関がある"},{"category":"統計・計算","question":"相関係数が0に近いときの意味は？","choices":["ほとんど相関がない","強い相関がある","分布が広い","中央値が平均値に近い"],"answer":"ほとんど相関がない"},{"category":"統計・計算","question":"確率とは何を表す？","choices":["ある事象が起こる可能性","平均値","分散","標準偏差"],"answer":"ある事象が起こる可能性"},{"category":"統計・計算","question":"二項分布はどんな場合に使う？","choices":["成功/失敗の2通りの結果を扱う場合","連続値の分布","散布図の分析","中央値の計算"],"answer":"成功/失敗の2通りの結果を扱う場合"},{"category":"統計・計算","question":"正規分布の特徴は？","choices":["平均値を中心に左右対称","偏っている","階段状の分布","不連続な分布"],"answer":"平均値を中心に左右対称"},{"category":"統計・計算","question":"標本と母集団の違いは？","choices":["標本は一部、母集団は全体","標本は平均値、母集団は分散","同じ意味","標本は分散、母集団は中央値"],"answer":"標本は一部、母集団は全体"},{"category":"統計・計算","question":"偏差値50は何を意味する？","choices":["平均値と同じ","中央値","最頻値","最大値"],"answer":"平均値と同じ"},{"category":"統計・計算","question":"標準偏差が小さいと何がわかる？","choices":["データのばらつきが小さい","データが多い","平均値が大きい","中央値が小さい"],"answer":"データのばらつきが小さい"},{"category":"統計・計算","question":"標準偏差が大きいと何がわかる？","choices":["データのばらつきが大きい","平均値が大きい","中央値が小さい","データが偏っている"],"answer":"データのばらつきが大きい"},{"category":"統計・計算","question":"度数分布表とは何か？","choices":["データを階級ごとに件数をまとめた表","平均値を出す表","標準偏差を計算する表","中央値の表"],"answer":"データを階級ごとに件数をまとめた表"},{"category":"統計・計算","question":"累積度数とは？","choices":["ある値以下のデータ件数の合計","中央値","平均値","最大値"],"answer":"ある値以下のデータ件数の合計"},{"category":"統計・計算","question":"箱ひげ図の目的は？","choices":["データの分布やばらつきを視覚化する","相関関係を見る","管理限界を確認する","件数を集計する"],"answer":"データの分布やばらつきを視覚化する"},{"category":"統計・計算","question":"偏差とは？","choices":["データと平均値との差","標準偏差のこと","中央値","分散"],"answer":"データと平均値との差"},{"category":"統計・計算","question":"データの範囲（レンジ）が大きいとどうなる？","choices":["ばらつきが大きい","中央値が高い","平均値が低い","標準偏差が0"],"answer":"ばらつきが大きい"},{"category":"統計・計算","question":"分散と標準偏差の関係は？","choices":["標準偏差＝分散の平方根","分散＝標準偏差の平方","中央値＝平均値","分散＝範囲"],"answer":"標準偏差＝分散の平方根"},{"category":"統計・計算","question":"確率が0.5とは？","choices":["50%の確率で起こる","100%起こる","0%起こる","中央値"],"answer":"50%の確率で起こる"},{"category":"統計・計算","question":"正規分布で68-95-99.7の法則とは？","choices":["平均±1σで約68%のデータが含まれる","中央値の計算方法","最頻値の範囲","標準偏差が0になる"],"answer":"平均±1σで約68%のデータが含まれる"},{"category":"統計・計算","question":"標準化とは？","choices":["データを平均0、標準偏差1に変換すること","中央値を計算すること","分散を求めること","件数を集計すること"],"answer":"データを平均0、標準偏差1に変換すること"},{"category":"統計・計算","question":"偏差値が高いほど？","choices":["平均より上に位置する","平均より下に位置する","中央値に近い","最頻値と同じ"],"answer":"平均より上に位置する"},{"category":"統計・計算","question":"相関関係がないとは？","choices":["2つの変数が関係しないこと","正の相関があること","負の相関があること","分布が狭いこと"],"answer":"2つの変数が関係しないこと"},{"category":"統計・計算","question":"二項分布で試行回数が増えると？","choices":["正規分布に近づく","平均値が0になる","標準偏差が0になる","中央値が増える"],"answer":"正規分布に近づく"}];
+
+// ===== ここからプログラム本体 =====
+const ALL_Q = RAW_QUESTIONS.map(q => ({ ...q, answer: q.choices.indexOf(q.answer) })).filter(q => q.answer !== -1);
+const STORAGE_KEY = 'qc3_quiz_progress_v2';
+
+let currentQuestions = [];
+let userAnswers = [];
+let wrongQuestionIndexes = [];
+let currentQuestionIndex = 0;
+
+const elements = {
+    startBtn: document.getElementById('startBtn'),
+    wrongBtn: document.getElementById('wrongBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    quizSection: document.getElementById('quizSection'),
+    qtext: document.getElementById('qtext'),
+    choices: document.getElementById('choices'),
+    explain: document.getElementById('explain'),
+    prevBtn: document.getElementById('prevBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    total: document.getElementById('total'),
+    index: document.getElementById('index'),
+    correctCount: document.getElementById('correctCount'),
+    rate: document.getElementById('rate'),
+    allOn: document.getElementById('allOn'),
+    allOff: document.getElementById('allOff'),
+};
+
+function saveState() {
+    if (currentQuestions.length === 0) return;
+    const state = {
+        questions: currentQuestions,
+        answers: userAnswers,
+        wrongIndexes: wrongQuestionIndexes,
+        currentIndex: currentQuestionIndex
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadState() {
+    const savedStateJSON = localStorage.getItem(STORAGE_KEY);
+    if (!savedStateJSON) return false;
+    try {
+        const savedState = JSON.parse(savedStateJSON);
+        currentQuestions = savedState.questions;
+        userAnswers = savedState.answers;
+        wrongQuestionIndexes = savedState.wrongIndexes;
+        currentQuestionIndex = savedState.currentIndex;
+        return true;
+    } catch (e) {
+        console.error("進捗の復元に失敗:", e);
+        localStorage.removeItem(STORAGE_KEY);
+        return false;
+    }
+}
+
+function shuffleArray(array) {
+    const newArray = [...array];
+    for (let i = newArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    }
+    return newArray;
+}
+
+function updateStatus() {
+    const total = currentQuestions.length;
+    const answeredCount = userAnswers.filter(a => a !== undefined).length;
+    const correctCount = userAnswers.reduce((acc, val, idx) => {
+        return val !== undefined && val === currentQuestions[idx].answer ? acc + 1 : acc;
+    }, 0);
+
+    elements.total.textContent = total;
+    elements.index.textContent = total > 0 ? currentQuestionIndex + 1 : 0;
+    elements.correctCount.textContent = correctCount;
+    elements.rate.textContent = answeredCount > 0 ? `${Math.round((correctCount / answeredCount) * 100)}%` : '-';
+    
+    elements.prevBtn.disabled = currentQuestionIndex === 0;
+    elements.nextBtn.disabled = currentQuestionIndex === total - 1;
+    elements.wrongBtn.disabled = wrongQuestionIndexes.length === 0;
+}
+
+function displayQuestion() {
+    if (currentQuestions.length === 0) {
+        elements.quizSection.classList.add('hidden');
+        return;
+    }
+    elements.quizSection.classList.remove('hidden');
+    
+    const q = currentQuestions[currentQuestionIndex];
+    elements.qtext.textContent = `Q${currentQuestionIndex + 1}. [${q.category}] ${q.question}`;
+    elements.choices.innerHTML = '';
+    elements.explain.textContent = '';
+    
+    q.choices.forEach((choiceText, index) => {
+        const button = document.createElement('button');
+        button.className = 'choice';
+        button.textContent = choiceText;
+        button.onclick = () => checkAnswer(index, button);
+        elements.choices.appendChild(button);
+    });
+
+    if (userAnswers[currentQuestionIndex] !== undefined) {
+        showResultForCurrentQuestion();
+    }
+    updateStatus();
+}
+
+function showResultForCurrentQuestion() {
+    const q = currentQuestions[currentQuestionIndex];
+    const userAnswerIndex = userAnswers[currentQuestionIndex];
+    const choiceButtons = elements.choices.querySelectorAll('.choice');
+
+    choiceButtons.forEach((btn, index) => {
+        btn.disabled = true;
+        if (index === q.answer) {
+            btn.classList.add('correct');
+        }
+        if (index === userAnswerIndex && userAnswerIndex !== q.answer) {
+            btn.classList.add('wrong');
+        }
+    });
+
+    if (userAnswerIndex === q.answer) {
+        elements.explain.textContent = '正解！';
+    } else {
+        elements.explain.textContent = `不正解… 正解は「${q.choices[q.answer]}」でした。`;
+    }
+}
+
+function checkAnswer(selectedIndex, button) {
+    if (userAnswers[currentQuestionIndex] !== undefined) return;
+
+    userAnswers[currentQuestionIndex] = selectedIndex;
+    const q = currentQuestions[currentQuestionIndex];
+
+    if (selectedIndex !== q.answer) {
+        if (!wrongQuestionIndexes.includes(currentQuestionIndex)) {
+            wrongQuestionIndexes.push(currentQuestionIndex);
+        }
+    } else {
+        wrongQuestionIndexes = wrongQuestionIndexes.filter(idx => idx !== currentQuestionIndex);
+    }
+    
+    showResultForCurrentQuestion();
+    updateStatus();
+    saveState();
+}
+
+function startQuiz(questions) {
+    // 問題ごとに選択肢をシャッフルする
+    const preparedQuestions = questions.map(q => {
+        const shuffledChoices = shuffleArray(q.choices);
+        const newAnswerIndex = shuffledChoices.indexOf(q.choices[q.answer]);
+        return { ...q, choices: shuffledChoices, answer: newAnswerIndex };
+    });
+
+    currentQuestions = preparedQuestions;
+    userAnswers = new Array(preparedQuestions.length).fill(undefined);
+    wrongQuestionIndexes = [];
+    currentQuestionIndex = 0;
+    displayQuestion();
+    saveState();
+}
+
+elements.startBtn.addEventListener('click', () => {
+    const selectedCats = Array.from(document.querySelectorAll('.cat:checked')).map(cb => cb.value);
+    if (selectedCats.length === 0) {
+        alert('カテゴリを1つ以上選択してください。');
+        return;
+    }
+    
+    let filteredQuestions = ALL_Q.filter(q => selectedCats.includes(q.category));
+    let shuffled = shuffleArray(filteredQuestions);
+    
+    const count = parseInt(document.getElementById('countSel').value, 10);
+    const finalQuestions = count >= 150 ? shuffled : shuffled.slice(0, count);
+    
+    startQuiz(finalQuestions);
+});
+
+elements.wrongBtn.addEventListener('click', () => {
+    const wrongQuestions = wrongQuestionIndexes.map(i => currentQuestions[i]);
+    if(wrongQuestions.length === 0) {
+        alert('間違えた問題がありません。');
+        return;
+    }
+    startQuiz(shuffleArray(wrongQuestions));
+});
+
+elements.resetBtn.addEventListener('click', () => {
+    if (confirm('本当にすべての進捗をリセットしますか？この操作は元に戻せません。')) {
+        localStorage.removeItem(STORAGE_KEY);
+        currentQuestions = [];
+        userAnswers = [];
+        wrongQuestionIndexes = [];
+        currentQuestionIndex = 0;
+        elements.quizSection.classList.add('hidden');
+        updateStatus();
+    }
+});
+
+elements.prevBtn.addEventListener('click', () => {
+    if (currentQuestionIndex > 0) {
+        currentQuestionIndex--;
+        displayQuestion();
+        saveState();
+    }
+});
+
+elements.nextBtn.addEventListener('click', () => {
+    if (currentQuestionIndex < currentQuestions.length - 1) {
+        currentQuestionIndex++;
+        displayQuestion();
+        saveState();
+    }
+});
+
+elements.allOn.onclick = () => document.querySelectorAll('.cat').forEach(c => c.checked = true);
+elements.allOff.onclick = () => document.querySelectorAll('.cat').forEach(c => c.checked = false);
+
+window.addEventListener('keydown', e => { 
+    const key = e.key.toLowerCase();
+    if (/^[1-4]$/.test(key)) {
+        const btn = document.querySelectorAll('.choice')[parseInt(key) - 1];
+        if (btn && !btn.disabled) btn.click();
+    }
+    if (key === 'n' && !elements.nextBtn.disabled) elements.nextBtn.click();
+    if (key === 'p' && !elements.prevBtn.disabled) elements.prevBtn.click();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (loadState()) {
+        alert('前回の進捗を復元しました。');
+        displayQuestion();
+    } else {
+        updateStatus();
+    }
+});
+</script>
+</body>
+</html>
